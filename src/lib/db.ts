@@ -1,0 +1,90 @@
+import Database from "better-sqlite3";
+import path from "node:path";
+import fs from "node:fs";
+
+const DB_PATH = path.resolve(process.cwd(), "data", "pocket.db");
+
+let _db: Database.Database | null = null;
+
+export function getDb(): Database.Database {
+  if (_db) return _db;
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  const db = new Database(DB_PATH);
+  db.pragma("journal_mode = WAL");
+  db.pragma("synchronous = NORMAL");
+  db.pragma("foreign_keys = ON");
+  initSchema(db);
+  _db = db;
+  return db;
+}
+
+function initSchema(db: Database.Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tournament (
+      id              TEXT PRIMARY KEY,
+      name            TEXT NOT NULL,
+      game            TEXT NOT NULL,
+      format          TEXT,
+      date            TEXT NOT NULL,                  -- ISO timestamp
+      players         INTEGER NOT NULL,
+      organizer_id    INTEGER,
+      organizer_name  TEXT,
+      organizer_logo  TEXT,
+      decklists       INTEGER NOT NULL DEFAULT 0,
+      is_online       INTEGER NOT NULL DEFAULT 1,
+      is_public       INTEGER NOT NULL DEFAULT 1,
+      structure       TEXT,                            -- e.g. "SWISS,SINGLE_BRACKET"
+      match_format    TEXT,                            -- e.g. "BO1,BO3"
+      banned_count    INTEGER NOT NULL DEFAULT 0,
+      special_count   INTEGER NOT NULL DEFAULT 0,
+      eligible        INTEGER NOT NULL DEFAULT 0,     -- yuki_1chiban filter
+      synced_at       TEXT NOT NULL                    -- ISO timestamp
+    );
+    CREATE INDEX IF NOT EXISTS tournament_date_idx ON tournament(date DESC);
+    CREATE INDEX IF NOT EXISTS tournament_eligible_idx ON tournament(eligible, date DESC);
+
+    CREATE TABLE IF NOT EXISTS standing (
+      tournament_id   TEXT NOT NULL REFERENCES tournament(id) ON DELETE CASCADE,
+      player_id       TEXT NOT NULL,                   -- limitless username, stable
+      display_name    TEXT NOT NULL,
+      country         TEXT,
+      placing         INTEGER NOT NULL,
+      wins            INTEGER NOT NULL DEFAULT 0,
+      losses          INTEGER NOT NULL DEFAULT 0,
+      ties            INTEGER NOT NULL DEFAULT 0,
+      drop_round      INTEGER,
+      deck_id         TEXT,
+      deck_name       TEXT,
+      deck_icon_a     TEXT,
+      deck_icon_b     TEXT,
+      decklist_json   TEXT,                             -- raw decklist JSON (pokemon/trainer/energy)
+      points          INTEGER NOT NULL DEFAULT 0,       -- ranking points awarded for this placing
+      PRIMARY KEY (tournament_id, player_id)
+    );
+    CREATE INDEX IF NOT EXISTS standing_player_idx       ON standing(player_id);
+    CREATE INDEX IF NOT EXISTS standing_deck_idx         ON standing(deck_id);
+    CREATE INDEX IF NOT EXISTS standing_country_idx      ON standing(country);
+    CREATE INDEX IF NOT EXISTS standing_tournament_idx   ON standing(tournament_id, placing);
+
+    CREATE TABLE IF NOT EXISTS sync_meta (
+      key             TEXT PRIMARY KEY,
+      value           TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
+    );
+  `);
+}
+
+export function setMeta(key: string, value: string) {
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO sync_meta(key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).run(key, value, new Date().toISOString());
+}
+
+export function getMeta(key: string): string | null {
+  const row = getDb().prepare(`SELECT value FROM sync_meta WHERE key = ?`).get(key) as
+    | { value: string }
+    | undefined;
+  return row?.value ?? null;
+}
