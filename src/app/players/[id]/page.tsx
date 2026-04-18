@@ -96,7 +96,7 @@ export default async function PlayerPage({
 
         <Card title="Tournament history" subtitle="Most recent first">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm sticky-head">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-ink-dim">
                   <th className="px-4 py-3">Date</th>

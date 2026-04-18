@@ -68,7 +68,7 @@ export default async function Home({
           }
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm sticky-head">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-ink-dim">
                   <Th className="w-12">#</Th>

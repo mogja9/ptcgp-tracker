@@ -48,3 +48,19 @@ body {
 .hairline > * + * {
   border-top: 1px solid theme("colors.line.DEFAULT");
 }
+
+/* Allow vertical content to escape table scroll containers so `position:
+   sticky` on <thead> works relative to the page viewport. The wrapper still
+   scrolls horizontally on narrow screens. */
+.overflow-x-auto {
+  overflow-y: visible;
+}
+
+/* Sticky table headers: opt-in per table. */
+.sticky-head thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background-color: theme("colors.bg.card");
+  box-shadow: 0 1px 0 theme("colors.line.DEFAULT");
+}

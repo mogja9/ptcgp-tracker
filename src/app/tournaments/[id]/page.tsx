@@ -56,7 +56,7 @@ export default async function TournamentPage({
 
         <Card title="Final standings" subtitle="With decklists where provided">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm sticky-head">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-ink-dim">
                   <th className="px-4 py-3 w-12">#</th>
