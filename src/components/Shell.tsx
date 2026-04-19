@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { getStats, getSeasonsWithData } from "@/lib/queries";
 import { SeasonPicker } from "./SeasonPicker";
+import { MobileNav } from "./MobileNav";
 import type { SeasonFilter } from "@/lib/seasons";
 
 const NAV = [
@@ -39,7 +40,7 @@ export function Shell({
               </div>
             </div>
           </Link>
-          <nav className="flex items-center gap-1 ml-2">
+          <nav className="hidden md:flex items-center gap-1 ml-2">
             {NAV.map((n) => (
               <Link
                 key={n.href}
@@ -50,7 +51,7 @@ export function Shell({
               </Link>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-3">
             <div className="hidden md:block text-xs text-ink-dim tabular">
               {stats && stats.eligibleTournaments > 0 ? (
                 <span>
@@ -61,6 +62,7 @@ export function Shell({
               )}
             </div>
             <SeasonPicker current={pickerCurrent} seasonsWithData={seasonsWithData} />
+            <MobileNav items={NAV} />
           </div>
         </div>
       </header>
