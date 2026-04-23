@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Card, Stat, RankCell, Badge } from "@/components/ui";
 import { DeckIcon } from "@/components/DeckIcon";
+import { Decklist, parseDecklist } from "@/components/Decklist";
 import { getTournament } from "@/lib/queries";
 import { parseSeasonParam } from "@/lib/seasons";
 import { flagEmoji } from "@/lib/countries";
@@ -54,54 +55,68 @@ export default async function TournamentPage({
           <Stat label="Eligible" value={t.eligible ? "Yes" : "No"} />
         </div>
 
-        <Card title="Final standings" subtitle="With decklists where provided">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm sticky-head">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-ink-dim">
-                  <th className="px-4 py-3 w-12">#</th>
-                  <th className="px-4 py-3">Player</th>
-                  <th className="px-4 py-3">Deck</th>
-                  <th className="px-4 py-3 text-right hidden sm:table-cell">Record</th>
-                  <th className="px-4 py-3 text-right">Points</th>
-                </tr>
-              </thead>
-              <tbody className="hairline">
-                {t.standings.map((s) => (
-                  <tr key={s.playerId} className="hover:bg-bg-hover/40 transition-colors">
-                    <td className="px-4 py-2.5"><RankCell rank={s.placing} /></td>
-                    <td className="px-4 py-2.5">
-                      <Link
-                        href={qsHref(`/players/${encodeURIComponent(s.playerId)}`, sp)}
-                        className="text-ink hover:text-accent font-medium"
-                      >
-                        <span aria-hidden className="mr-2">{flagEmoji(s.country)}</span>
-                        {s.displayName}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {s.deckId ? (
-                        <Link
-                          href={qsHref(`/decks/${encodeURIComponent(s.deckId)}`, sp)}
-                          className="inline-flex items-center gap-2 text-ink hover:text-accent"
-                        >
-                          <DeckIcon a={s.iconA} b={s.iconB} size={22} />
-                          <span className="text-sm">{s.deckName ?? "-"}</span>
-                        </Link>
-                      ) : (
-                        <span className="text-ink-dim text-xs">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular text-ink-muted hidden sm:table-cell">
-                      {s.wins}-{s.losses}-{s.ties}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular font-medium">
-                      {s.points > 0 ? fmtNum(s.points) : "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <Card title="Final standings" subtitle="Click a row to expand the decklist">
+          <div role="rowgroup">
+            <div className="grid grid-cols-[2rem_1fr_minmax(0,1fr)_auto_auto_1rem] gap-3 items-baseline px-5 py-3 border-b border-line text-xs uppercase tracking-wider text-ink-dim">
+              <div>#</div>
+              <div>Player</div>
+              <div>Deck</div>
+              <div className="text-right hidden sm:block">Record</div>
+              <div className="text-right">Points</div>
+              <div />
+            </div>
+            <ul className="divide-y divide-line">
+              {t.standings.map((s) => {
+                const dl = parseDecklist(s.decklistJson);
+                return (
+                  <li key={s.playerId}>
+                    <details className="group">
+                      <summary className="grid grid-cols-[2rem_1fr_minmax(0,1fr)_auto_auto_1rem] gap-3 items-center px-5 py-2.5 cursor-pointer list-none hover:bg-bg-hover/40 transition-colors">
+                        <div><RankCell rank={s.placing} /></div>
+                        <div className="min-w-0">
+                          <Link
+                            href={qsHref(`/players/${encodeURIComponent(s.playerId)}`, sp)}
+                            className="text-ink hover:text-accent font-medium truncate inline-block max-w-full"
+                          >
+                            <span aria-hidden className="mr-2">{flagEmoji(s.country)}</span>
+                            {s.displayName}
+                          </Link>
+                        </div>
+                        <div className="min-w-0">
+                          {s.deckId ? (
+                            <Link
+                              href={qsHref(`/decks/${encodeURIComponent(s.deckId)}`, sp)}
+                              className="inline-flex items-center gap-2 text-ink hover:text-accent truncate max-w-full"
+                              >
+                              <DeckIcon a={s.iconA} b={s.iconB} size={22} />
+                              <span className="text-sm truncate">{s.deckName ?? "-"}</span>
+                            </Link>
+                          ) : (
+                            <span className="text-ink-dim text-xs">-</span>
+                          )}
+                        </div>
+                        <div className="text-right tabular text-ink-muted text-sm hidden sm:block">
+                          {s.wins}-{s.losses}-{s.ties}
+                        </div>
+                        <div className="text-right tabular font-medium text-sm">
+                          {s.points > 0 ? fmtNum(s.points) : "-"}
+                        </div>
+                        <Chevron />
+                      </summary>
+                      <div className="px-5 pb-5 pt-2 bg-bg-raised/40">
+                        {dl ? (
+                          <Decklist data={dl} />
+                        ) : (
+                          <div className="text-xs text-ink-dim italic">
+                            No decklist published for this finish.
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </Card>
       </div>
@@ -115,4 +130,21 @@ function qsHref(pathname: string, sp: SP) {
 
 function safe<T>(fn: () => T): T | null {
   try { return fn(); } catch { return null; }
+}
+
+function Chevron() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="text-ink-dim transition-transform group-open:rotate-180"
+      aria-hidden
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
 }

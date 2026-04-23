@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Card, Stat, RankCell } from "@/components/ui";
 import { DeckIcon } from "@/components/DeckIcon";
-import { getArchetypeLeaderboard, getDeckRollup } from "@/lib/queries";
+import { Decklist, parseDecklist } from "@/components/Decklist";
+import { getArchetypeLeaderboard, getDeckRollup, getSampleDecklist } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
-import { fmtNum, fmtPct } from "@/lib/format";
+import { fmtDate, fmtNum, fmtPct } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export default async function DeckPage({
   if (!rollup) notFound();
 
   const players = safe(() => getArchetypeLeaderboard(decodedId, filter), [] as ReturnType<typeof getArchetypeLeaderboard>);
+  const sample = safe(() => getSampleDecklist(decodedId, filter), null as ReturnType<typeof getSampleDecklist>);
+  const sampleList = sample ? parseDecklist(sample.decklistJson) : null;
 
   return (
     <Shell filter={filter}>
@@ -51,6 +54,35 @@ export default async function DeckPage({
           <Stat label="Finals" value={fmtNum(rollup.top2)} sub={`+ ${Math.max(rollup.top4 - rollup.top2 - rollup.top1, 0)} top 4`} />
           <Stat label="Distinct pilots" value={fmtNum(players.length)} />
         </div>
+
+        {sampleList && sample && (
+          <Card
+            title="Sample list"
+            subtitle={
+              <>
+                Best finish so far -{" "}
+                <Link
+                  href={qsHref(`/players/${encodeURIComponent(sample.playerId)}`, sp)}
+                  className="hover:text-accent"
+                >
+                  {sample.displayName}
+                </Link>
+                {" "}at{" "}
+                <Link
+                  href={qsHref(`/tournaments/${sample.tournamentId}`, sp)}
+                  className="hover:text-accent"
+                >
+                  {sample.tournamentName}
+                </Link>
+                {" "}({fmtDate(sample.date)}, place {sample.placing})
+              </>
+            }
+          >
+            <div className="px-5 py-4">
+              <Decklist data={sampleList} />
+            </div>
+          </Card>
+        )}
 
         <Card title="Top pilots" subtitle={`Best players on ${rollup.deckName}`}>
           {players.length === 0 ? (

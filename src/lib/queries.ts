@@ -258,6 +258,7 @@ export function getTournament(id: string) {
       `SELECT placing, player_id AS playerId, display_name AS displayName, country,
               wins, losses, ties,
               deck_id AS deckId, deck_name AS deckName, deck_icon_a AS iconA, deck_icon_b AS iconB,
+              decklist_json AS decklistJson,
               points
        FROM standing
        WHERE tournament_id = ?
@@ -271,9 +272,47 @@ export function getTournament(id: string) {
       wins: number; losses: number; ties: number;
       deckId: string | null; deckName: string | null;
       iconA: string | null; iconB: string | null;
+      decklistJson: string | null;
       points: number;
     }>;
   return { ...t, standings };
+}
+
+// Most recent winning decklist for a given archetype (highest placing,
+// tie-broken by recency). Used to surface a "sample list" on deck pages.
+export function getSampleDecklist(deckId: string, filter: SeasonFilter): {
+  decklistJson: string | null;
+  placing: number;
+  tournamentId: string;
+  tournamentName: string;
+  date: string;
+  displayName: string;
+  playerId: string;
+} | null {
+  const dc = dateClause(filter);
+  const row = getDb()
+    .prepare(
+      `SELECT s.decklist_json AS decklistJson, s.placing,
+              s.display_name AS displayName, s.player_id AS playerId,
+              t.id AS tournamentId, t.name AS tournamentName, t.date
+       FROM standing s
+       JOIN tournament t ON t.id = s.tournament_id
+       WHERE t.eligible = 1 AND s.deck_id = ? AND s.decklist_json IS NOT NULL${dc.sql}
+       ORDER BY s.placing ASC, t.date DESC
+       LIMIT 1`
+    )
+    .get(deckId, ...dc.params) as
+      | {
+          decklistJson: string | null;
+          placing: number;
+          displayName: string;
+          playerId: string;
+          tournamentId: string;
+          tournamentName: string;
+          date: string;
+        }
+      | undefined;
+  return row ?? null;
 }
 
 // ---------- Decks ----------
