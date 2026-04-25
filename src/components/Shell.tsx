@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { getStats, getSeasonsWithData } from "@/lib/queries";
 import { SeasonPicker } from "./SeasonPicker";
 import { MobileNav } from "./MobileNav";
+import { PlayerSearch } from "./PlayerSearch";
 import type { SeasonFilter } from "@/lib/seasons";
 
 const NAV = [
@@ -52,15 +53,7 @@ export function Shell({
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">
-            <div className="hidden md:block text-xs text-ink-dim tabular">
-              {stats && stats.eligibleTournaments > 0 ? (
-                <span>
-                  {stats.eligibleTournaments} tournaments · {stats.distinctPlayers.toLocaleString()} players
-                </span>
-              ) : (
-                <span className="text-ink-dim">No data in this season</span>
-              )}
-            </div>
+            <PlayerSearch />
             <SeasonPicker current={pickerCurrent} seasonsWithData={seasonsWithData} />
             <MobileNav items={NAV} />
           </div>

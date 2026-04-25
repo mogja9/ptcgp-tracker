@@ -550,6 +550,39 @@ export function getPlayer(playerId: string, filter: SeasonFilter): PlayerStats |
   };
 }
 
+// ---------- Search ----------
+
+export type PlayerSearchResult = {
+  playerId: string;
+  displayName: string;
+  country: string | null;
+  appearances: number;
+};
+
+// Type-ahead search across player_id and display_name. Case-insensitive.
+// Ranks by appearance count so well-known players surface first.
+export function searchPlayers(q: string, limit = 8): PlayerSearchResult[] {
+  const trimmed = q.trim();
+  if (trimmed.length < 1) return [];
+  const pattern = `%${trimmed.replace(/[\\%_]/g, (c) => "\\" + c)}%`;
+  return getDb()
+    .prepare(
+      `SELECT s.player_id AS playerId,
+              MAX(s.display_name)   AS displayName,
+              MAX(s.country)        AS country,
+              COUNT(*)              AS appearances
+         FROM standing s
+         JOIN tournament t ON t.id = s.tournament_id
+         WHERE t.eligible = 1
+           AND (LOWER(s.player_id) LIKE LOWER(?) ESCAPE '\\'
+                OR LOWER(s.display_name) LIKE LOWER(?) ESCAPE '\\')
+         GROUP BY s.player_id
+         ORDER BY appearances DESC
+         LIMIT ?`
+    )
+    .all(pattern, pattern, limit) as PlayerSearchResult[];
+}
+
 // ---------- Misc ----------
 
 export function getStats(filter?: SeasonFilter) {
