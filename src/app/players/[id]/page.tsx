@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Card, Stat, RankCell, Badge } from "@/components/ui";
 import { DeckIcon } from "@/components/DeckIcon";
+import { FavoriteStar } from "@/components/FavoriteStar";
 import { getPlayer } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
@@ -32,7 +33,8 @@ export default async function PlayerPage({
       <div className="grid gap-8">
         <div>
           <Link href={qsHref("/", sp)} className="text-xs text-ink-dim hover:text-accent">← Rankings</Link>
-          <div className="mt-3 flex items-baseline gap-4 flex-wrap">
+          <div className="mt-3 flex items-baseline gap-3 flex-wrap">
+            <FavoriteStar playerId={p.playerId} size={20} className="-mb-1" />
             <h1 className="text-3xl font-semibold tracking-tightish text-ink">
               {p.displayName}
             </h1>

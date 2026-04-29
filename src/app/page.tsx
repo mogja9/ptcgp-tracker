@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { Card, Stat, RankCell, EmptyState, Badge } from "@/components/ui";
+import { FavoriteStar } from "@/components/FavoriteStar";
+import { FollowingRail } from "@/components/FollowingRail";
 import { getLeaderboard, getStats, getRecentTournaments } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
@@ -43,10 +45,17 @@ export default async function Home({
     );
   }
 
+  const knownPlayers = Object.fromEntries(
+    board.map((p) => [p.playerId, { displayName: p.displayName, country: p.country }])
+  );
+  const qs = sp.season ? `?season=${encodeURIComponent(sp.season)}` : "";
+
   return (
     <Shell filter={filter}>
       <div className="grid gap-8">
         <Hero filter={filter} />
+
+        <FollowingRail known={knownPlayers} qs={qs} />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Stat label="Eligible tournaments" value={fmtNum(stats.eligibleTournaments)} />
@@ -88,12 +97,15 @@ export default async function Home({
                   <tr key={p.playerId} className="hover:bg-bg-hover/40 transition-colors">
                     <Td><RankCell rank={p.rank} /></Td>
                     <Td>
-                      <Link
-                        href={qsHref(`/players/${encodeURIComponent(p.playerId)}`, sp)}
-                        className="font-medium text-ink hover:text-accent transition-colors"
-                      >
-                        {p.displayName}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <FavoriteStar playerId={p.playerId} />
+                        <Link
+                          href={qsHref(`/players/${encodeURIComponent(p.playerId)}`, sp)}
+                          className="font-medium text-ink hover:text-accent transition-colors"
+                        >
+                          {p.displayName}
+                        </Link>
+                      </div>
                     </Td>
                     <Td className="hidden sm:table-cell text-ink-muted">
                       <span className="inline-flex items-center gap-2">
