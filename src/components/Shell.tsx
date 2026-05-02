@@ -4,6 +4,7 @@ import { getStats, getSeasonsWithData } from "@/lib/queries";
 import { SeasonPicker } from "./SeasonPicker";
 import { MobileNav } from "./MobileNav";
 import { PlayerSearch } from "./PlayerSearch";
+import { ThemeToggle } from "./ThemeToggle";
 import type { SeasonFilter } from "@/lib/seasons";
 
 const NAV = [
@@ -55,6 +56,7 @@ export function Shell({
           <div className="ml-auto flex items-center gap-3">
             <PlayerSearch />
             <SeasonPicker current={pickerCurrent} seasonsWithData={seasonsWithData} />
+            <ThemeToggle />
             <MobileNav items={NAV} />
           </div>
         </div>

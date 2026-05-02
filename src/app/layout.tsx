@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { themeBootstrap } from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "Pocket Rankings - Pokémon TCG Pocket competitive tracker",
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+      </head>
       <body>{children}</body>
     </html>
   );

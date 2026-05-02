@@ -1,5 +1,11 @@
 import type { Config } from "tailwindcss";
 
+// All palette tokens reference CSS variables (defined in globals.css) so the
+// theme can swap by setting `data-theme="light"` on <html>. Each variable is
+// stored as a space-separated RGB triple so Tailwind can apply opacity via
+// `<alpha-value>`.
+const themed = (cssVar: string) => `rgb(var(${cssVar}) / <alpha-value>)`;
+
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
@@ -10,28 +16,27 @@ const config: Config = {
       },
       colors: {
         bg: {
-          DEFAULT: "#0b0d12",
-          raised: "#11141b",
-          card: "#151923",
-          hover: "#1c2230",
+          DEFAULT: themed("--bg-default"),
+          raised: themed("--bg-raised"),
+          card: themed("--bg-card"),
+          hover: themed("--bg-hover"),
         },
         ink: {
-          DEFAULT: "#e7ecf3",
-          muted: "#9aa3b2",
-          dim: "#6b7385",
+          DEFAULT: themed("--ink-default"),
+          muted: themed("--ink-muted"),
+          dim: themed("--ink-dim"),
         },
         line: {
-          DEFAULT: "#1f2533",
-          strong: "#2a3142",
+          DEFAULT: themed("--line-default"),
+          strong: themed("--line-strong"),
         },
         accent: {
-          DEFAULT: "#7cc4ff",
-          strong: "#3aa0ff",
+          DEFAULT: themed("--accent-default"),
+          strong: themed("--accent-strong"),
         },
-        gold: "#f0c674",
-        silver: "#c5cdd9",
-        bronze: "#c08658",
-        // Pokemon type colors (used for energy/type tags)
+        gold: themed("--gold"),
+        silver: themed("--silver"),
+        bronze: themed("--bronze"),
         type: {
           grass: "#5ec07c",
           fire: "#ff7a5c",
@@ -45,12 +50,12 @@ const config: Config = {
           colorless: "#b6b9c2",
         },
         tier: {
-          ss: "#ff5b8a",
-          s: "#ff8c42",
-          a: "#f6c33b",
-          b: "#7ed957",
-          c: "#5cb3ff",
-          d: "#9aa3b2",
+          ss: themed("--tier-ss"),
+          s:  themed("--tier-s"),
+          a:  themed("--tier-a"),
+          b:  themed("--tier-b"),
+          c:  themed("--tier-c"),
+          d:  themed("--tier-d"),
         },
       },
       letterSpacing: {

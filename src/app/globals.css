@@ -5,25 +5,80 @@
 :root {
   --font-sans: "Inter", "SF Pro Text", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+
+  /* Dark palette - default. Values are space-separated RGB triples so
+     Tailwind can apply `<alpha-value>` modifiers like `bg-bg-card/40`. */
+  --bg-default:    11  13  18;
+  --bg-raised:     17  20  27;
+  --bg-card:       21  25  35;
+  --bg-hover:      28  34  48;
+  --ink-default:   231 236 243;
+  --ink-muted:     154 163 178;
+  --ink-dim:       107 115 133;
+  --line-default:  31  37  51;
+  --line-strong:   42  49  66;
+  --accent-default: 124 196 255;
+  --accent-strong: 58 160 255;
+  --gold:          240 198 116;
+  --silver:        197 205 217;
+  --bronze:        192 134 88;
+  --tier-ss:       255  91 138;
+  --tier-s:        255 140  66;
+  --tier-a:        246 195  59;
+  --tier-b:        126 217  87;
+  --tier-c:         92 179 255;
+  --tier-d:        154 163 178;
+
+  --scrollbar-thumb:       31 37 51;
+  --scrollbar-thumb-hover: 42 49 66;
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg-default:    255 255 255;
+  --bg-raised:     244 246 248;
+  --bg-card:       255 255 255;
+  --bg-hover:      235 238 242;
+  --ink-default:   17 21 28;
+  --ink-muted:     86 95 109;
+  --ink-dim:       128 138 153;
+  --line-default:  225 229 235;
+  --line-strong:   202 208 217;
+  --accent-default: 36 119 197;
+  --accent-strong:  24 95 167;
+  --gold:          198 142 30;
+  --silver:        128 138 153;
+  --bronze:        159 95 49;
+  --tier-ss:       219 56 109;
+  --tier-s:        217 99 32;
+  --tier-a:        198 144 27;
+  --tier-b:         70 162 41;
+  --tier-c:         32 124 194;
+  --tier-d:        128 138 153;
+
+  --scrollbar-thumb:       210 214 222;
+  --scrollbar-thumb-hover: 178 184 196;
+
+  color-scheme: light;
 }
 
 html,
 body {
-  background: #0b0d12;
-  color: #e7ecf3;
+  background: rgb(var(--bg-default));
+  color: rgb(var(--ink-default));
   font-feature-settings: "ss01", "cv11", "tnum";
 }
 
 * {
-  border-color: theme("colors.line.DEFAULT");
+  border-color: rgb(var(--line-default));
 }
 
 ::selection {
-  background: rgba(124, 196, 255, 0.25);
-  color: #ffffff;
+  background: rgb(var(--accent-default) / 0.25);
+  color: rgb(var(--ink-default));
 }
 
-/* Subtle scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -32,35 +87,29 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1f2533;
+  background: rgb(var(--scrollbar-thumb));
   border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a3142;
+  background: rgb(var(--scrollbar-thumb-hover));
 }
 
-/* Numeric tabular columns */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Hairline divider used in tables */
 .hairline > * + * {
-  border-top: 1px solid theme("colors.line.DEFAULT");
+  border-top: 1px solid rgb(var(--line-default));
 }
 
-/* Allow vertical content to escape table scroll containers so `position:
-   sticky` on <thead> works relative to the page viewport. The wrapper still
-   scrolls horizontally on narrow screens. */
 .overflow-x-auto {
   overflow-y: visible;
 }
 
-/* Sticky table headers: opt-in per table. */
 .sticky-head thead th {
   position: sticky;
   top: 0;
   z-index: 5;
-  background-color: theme("colors.bg.card");
-  box-shadow: 0 1px 0 theme("colors.line.DEFAULT");
+  background-color: rgb(var(--bg-card));
+  box-shadow: 0 1px 0 rgb(var(--line-default));
 }
