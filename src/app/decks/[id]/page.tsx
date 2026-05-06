@@ -4,6 +4,8 @@ import { Shell } from "@/components/Shell";
 import { Card, Stat, RankCell } from "@/components/ui";
 import { DeckIcon } from "@/components/DeckIcon";
 import { Decklist, parseDecklist } from "@/components/Decklist";
+import { FavoriteStar } from "@/components/FavoriteStar";
+import { SortableTable, type ColumnDef, type RowData } from "@/components/SortableTable";
 import { getArchetypeLeaderboard, getDeckRollup, getSampleDecklist } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
@@ -88,54 +90,47 @@ export default async function DeckPage({
           {players.length === 0 ? (
             <div className="px-5 py-6 text-sm text-ink-muted">No pilots on record.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm sticky-head">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wider text-ink-dim">
-                    <th className="px-4 py-3 w-12">#</th>
-                    <th className="px-4 py-3">Player</th>
-                    <th className="px-4 py-3 hidden sm:table-cell">Country</th>
-                    <th className="px-4 py-3 text-right">Points</th>
-                    <th className="px-4 py-3 text-right hidden md:table-cell">Events</th>
-                    <th className="px-4 py-3 text-right hidden md:table-cell">Win %</th>
-                    <th className="px-4 py-3 text-right hidden lg:table-cell">1st / 2nd / T4</th>
-                  </tr>
-                </thead>
-                <tbody className="hairline">
-                  {players.slice(0, 100).map((p) => (
-                    <tr key={p.playerId} className="hover:bg-bg-hover/40 transition-colors">
-                      <td className="px-4 py-2.5"><RankCell rank={p.rank} /></td>
-                      <td className="px-4 py-2.5">
-                        <Link
-                          href={qsHref(`/players/${encodeURIComponent(p.playerId)}`, sp)}
-                          className="font-medium text-ink hover:text-accent"
-                        >
-                          {p.displayName}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2.5 hidden sm:table-cell text-ink-muted">
-                        <span className="inline-flex items-center gap-2">
-                          <span aria-hidden>{flagEmoji(p.country)}</span>
-                          <span className="text-xs">{countryName(p.country)}</span>
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular font-medium">
-                        {fmtNum(p.totalPoints)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular text-ink-muted hidden md:table-cell">
-                        {p.appearances}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular text-ink-muted hidden md:table-cell">
-                        {fmtPct(p.winRate)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular text-ink-muted hidden lg:table-cell">
-                        {p.top1} / {p.top2} / {p.top4}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <SortableTable
+              columns={pilotColumns}
+              rows={players.map((p) => ({
+                key: p.playerId,
+                filterText: `${p.displayName} ${p.playerId} ${p.country ?? ""}`,
+                sortValues: {
+                  rank: p.rank,
+                  name: p.displayName,
+                  country: p.country,
+                  points: p.totalPoints,
+                  events: p.appearances,
+                  winrate: p.winRate,
+                  first: p.top1,
+                  second: p.top2,
+                  top4: p.top4,
+                },
+                cells: [
+                  <RankCell key="r" rank={p.rank} />,
+                  <div key="n" className="flex items-center gap-2">
+                    <FavoriteStar playerId={p.playerId} />
+                    <Link
+                      href={qsHref(`/players/${encodeURIComponent(p.playerId)}`, sp)}
+                      className="font-medium text-ink hover:text-accent truncate"
+                    >
+                      {p.displayName}
+                    </Link>
+                  </div>,
+                  <span key="c" className="inline-flex items-center gap-2 text-ink-muted">
+                    <span aria-hidden>{flagEmoji(p.country)}</span>
+                    <span className="text-xs">{countryName(p.country)}</span>
+                  </span>,
+                  <span key="p" className="tabular font-medium">{fmtNum(p.totalPoints)}</span>,
+                  <span key="e" className="tabular text-ink-muted">{p.appearances}</span>,
+                  <span key="w" className="tabular text-ink-muted">{fmtPct(p.winRate)}</span>,
+                  <span key="f" className="tabular text-ink-muted">{p.top1} / {p.top2} / {p.top4}</span>,
+                ],
+              }))}
+              defaultSort={{ id: "rank", dir: "asc" }}
+              pageSize={50}
+              filterPlaceholder="Filter pilots..."
+            />
           )}
         </Card>
       </div>
@@ -149,3 +144,13 @@ function qsHref(pathname: string, sp: SP) {
 function safe<T>(fn: () => T, fallback: T): T {
   try { return fn(); } catch { return fallback; }
 }
+
+const pilotColumns: ColumnDef[] = [
+  { id: "rank",    label: "#",       sortable: true, className: "w-12" },
+  { id: "name",    label: "Player",  sortable: true },
+  { id: "country", label: "Country", sortable: true, headerOnly: "hidden sm:table-cell", className: "hidden sm:table-cell" },
+  { id: "points",  label: "Points",  sortable: true, align: "right" },
+  { id: "events",  label: "Events",  sortable: true, align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
+  { id: "winrate", label: "Win %",   sortable: true, align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
+  { id: "first",   label: "1st / 2nd / T4", align: "right", headerOnly: "hidden lg:table-cell", className: "hidden lg:table-cell" },
+];

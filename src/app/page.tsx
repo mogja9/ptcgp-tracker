@@ -3,6 +3,7 @@ import { Shell } from "@/components/Shell";
 import { Card, Stat, RankCell, EmptyState, Badge } from "@/components/ui";
 import { FavoriteStar } from "@/components/FavoriteStar";
 import { FollowingRail } from "@/components/FollowingRail";
+import { SortableTable, type ColumnDef, type RowData } from "@/components/SortableTable";
 import { getLeaderboard, getStats, getRecentTournaments } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
@@ -21,7 +22,7 @@ export default async function Home({
   const filter = parseSeasonParam(sp.season);
 
   const stats = safe(() => getStats(filter), null);
-  const board = safe(() => getLeaderboard(filter, 50), [] as ReturnType<typeof getLeaderboard>);
+  const board = safe(() => getLeaderboard(filter, 500), [] as ReturnType<typeof getLeaderboard>);
   const recent = safe(() => getRecentTournaments(filter, 5), [] as ReturnType<typeof getRecentTournaments>);
 
   if (!stats || stats.eligibleTournaments === 0) {
@@ -48,14 +49,66 @@ export default async function Home({
   const knownPlayers = Object.fromEntries(
     board.map((p) => [p.playerId, { displayName: p.displayName, country: p.country }])
   );
-  const qs = sp.season ? `?season=${encodeURIComponent(sp.season)}` : "";
+
+  const columns: ColumnDef[] = [
+    { id: "rank",   label: "#",      sortable: true,  className: "w-12" },
+    { id: "name",   label: "Player", sortable: true },
+    { id: "country",label: "Country",sortable: true,  headerOnly: "hidden sm:table-cell", className: "hidden sm:table-cell" },
+    { id: "points", label: "Points", sortable: true,  align: "right" },
+    { id: "events", label: "Events", sortable: true,  align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
+    { id: "first",  label: "1st",    sortable: true,  align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
+    { id: "second", label: "2nd",    sortable: true,  align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
+    { id: "top4",   label: "Top 4",  sortable: true,  align: "right", headerOnly: "hidden lg:table-cell", className: "hidden lg:table-cell" },
+    { id: "top8",   label: "Top 8",  sortable: true,  align: "right", headerOnly: "hidden lg:table-cell", className: "hidden lg:table-cell" },
+    { id: "top16",  label: "Top 16", sortable: true,  align: "right", headerOnly: "hidden xl:table-cell", className: "hidden xl:table-cell" },
+  ];
+
+  const rows: RowData[] = board.map((p) => ({
+    key: p.playerId,
+    filterText: `${p.displayName} ${p.playerId} ${p.country ?? ""}`,
+    sortValues: {
+      rank: p.rank,
+      name: p.displayName,
+      country: p.country,
+      points: p.totalPoints,
+      events: p.appearances,
+      first: p.byBucket["1ST"],
+      second: p.byBucket["2ND"],
+      top4: p.byBucket.TOP4,
+      top8: p.byBucket.TOP8,
+      top16: p.byBucket.TOP16,
+    },
+    cells: [
+      <RankCell key="r" rank={p.rank} />,
+      <div key="n" className="flex items-center gap-2">
+        <FavoriteStar playerId={p.playerId} />
+        <Link
+          href={qsHref(`/players/${encodeURIComponent(p.playerId)}`, sp)}
+          className="font-medium text-ink hover:text-accent transition-colors truncate"
+        >
+          {p.displayName}
+        </Link>
+      </div>,
+      <span key="c" className="inline-flex items-center gap-2 text-ink-muted">
+        <span aria-hidden>{flagEmoji(p.country)}</span>
+        <span className="text-xs">{countryName(p.country)}</span>
+      </span>,
+      <span key="p" className="tabular text-ink font-medium">{fmtNum(p.totalPoints)}</span>,
+      <span key="e" className="tabular text-ink-muted">{p.appearances}</span>,
+      <span key="1" className="tabular text-ink-muted">{p.byBucket["1ST"] || ""}</span>,
+      <span key="2" className="tabular text-ink-muted">{p.byBucket["2ND"] || ""}</span>,
+      <span key="4" className="tabular text-ink-muted">{p.byBucket.TOP4 || ""}</span>,
+      <span key="8" className="tabular text-ink-muted">{p.byBucket.TOP8 || ""}</span>,
+      <span key="16" className="tabular text-ink-muted">{p.byBucket.TOP16 || ""}</span>,
+    ],
+  }));
 
   return (
     <Shell filter={filter}>
       <div className="grid gap-8">
         <Hero filter={filter} />
 
-        <FollowingRail known={knownPlayers} qs={qs} />
+        <FollowingRail known={knownPlayers} qs={sp.season ? `?season=${encodeURIComponent(sp.season)}` : ""} />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Stat label="Eligible tournaments" value={fmtNum(stats.eligibleTournaments)} />
@@ -76,57 +129,13 @@ export default async function Home({
             </Link>
           }
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm sticky-head">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-ink-dim">
-                  <Th className="w-12">#</Th>
-                  <Th>Player</Th>
-                  <Th className="hidden sm:table-cell">Country</Th>
-                  <Th className="text-right">Points</Th>
-                  <Th className="text-right hidden md:table-cell">Events</Th>
-                  <Th className="text-right hidden md:table-cell">1st</Th>
-                  <Th className="text-right hidden md:table-cell">2nd</Th>
-                  <Th className="text-right hidden lg:table-cell">Top 4</Th>
-                  <Th className="text-right hidden lg:table-cell">Top 8</Th>
-                  <Th className="text-right hidden xl:table-cell">Top 16</Th>
-                </tr>
-              </thead>
-              <tbody className="hairline">
-                {board.map((p) => (
-                  <tr key={p.playerId} className="hover:bg-bg-hover/40 transition-colors">
-                    <Td><RankCell rank={p.rank} /></Td>
-                    <Td>
-                      <div className="flex items-center gap-2">
-                        <FavoriteStar playerId={p.playerId} />
-                        <Link
-                          href={qsHref(`/players/${encodeURIComponent(p.playerId)}`, sp)}
-                          className="font-medium text-ink hover:text-accent transition-colors"
-                        >
-                          {p.displayName}
-                        </Link>
-                      </div>
-                    </Td>
-                    <Td className="hidden sm:table-cell text-ink-muted">
-                      <span className="inline-flex items-center gap-2">
-                        <span aria-hidden>{flagEmoji(p.country)}</span>
-                        <span className="text-xs">{countryName(p.country)}</span>
-                      </span>
-                    </Td>
-                    <Td className="text-right tabular text-ink font-medium">
-                      {fmtNum(p.totalPoints)}
-                    </Td>
-                    <Td className="text-right tabular text-ink-muted hidden md:table-cell">{p.appearances}</Td>
-                    <Td className="text-right tabular text-ink-muted hidden md:table-cell">{p.byBucket["1ST"] || ""}</Td>
-                    <Td className="text-right tabular text-ink-muted hidden md:table-cell">{p.byBucket["2ND"] || ""}</Td>
-                    <Td className="text-right tabular text-ink-muted hidden lg:table-cell">{p.byBucket.TOP4 || ""}</Td>
-                    <Td className="text-right tabular text-ink-muted hidden lg:table-cell">{p.byBucket.TOP8 || ""}</Td>
-                    <Td className="text-right tabular text-ink-muted hidden xl:table-cell">{p.byBucket.TOP16 || ""}</Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SortableTable
+            columns={columns}
+            rows={rows}
+            defaultSort={{ id: "rank", dir: "asc" }}
+            pageSize={50}
+            filterPlaceholder="Filter by name or country..."
+          />
         </Card>
 
         {recent.length > 0 && (
@@ -183,18 +192,6 @@ function Hero({ filter }: { filter: ReturnType<typeof parseSeasonParam> }) {
   );
 }
 
-function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <th className={`px-4 py-3 font-medium ${className}`}>{children}</th>
-  );
-}
-
-function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-4 py-2.5 ${className}`}>{children}</td>;
-}
-
-// Preserve the season query param across in-app links so navigation stays in
-// the chosen season.
 function qsHref(pathname: string, sp: SP) {
   return sp.season ? `${pathname}?season=${encodeURIComponent(sp.season)}` : pathname;
 }

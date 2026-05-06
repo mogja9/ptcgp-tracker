@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Shell } from "@/components/Shell";
 import { Card, RankCell, EmptyState } from "@/components/ui";
+import { SortableTable, type ColumnDef } from "@/components/SortableTable";
 import { getCountryRankings } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName, isKnownCountry } from "@/lib/countries";
@@ -25,6 +26,18 @@ export default async function CountriesPage({
       </Shell>
     );
   }
+
+  const columns: ColumnDef[] = [
+    { id: "rank",    label: "#",        sortable: true, className: "w-12" },
+    { id: "country", label: "Country",  sortable: true },
+    { id: "points",  label: "Points",   sortable: true, align: "right" },
+    { id: "players", label: "Players",  sortable: true, align: "right", headerOnly: "hidden sm:table-cell", className: "hidden sm:table-cell" },
+    { id: "first",   label: "1st",      sortable: true, align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
+    { id: "second",  label: "2nd",      sortable: true, align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
+    { id: "top4",    label: "Top 4",    sortable: true, align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
+    { id: "top",     label: "Top players", headerOnly: "hidden lg:table-cell", className: "hidden lg:table-cell" },
+  ];
+
   return (
     <Shell filter={filter}>
       <div className="grid gap-8">
@@ -41,70 +54,55 @@ export default async function CountriesPage({
         </header>
 
         <Card title="Country leaderboard">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm sticky-head">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-ink-dim">
-                  <th className="px-4 py-3 w-12">#</th>
-                  <th className="px-4 py-3">Country</th>
-                  <th className="px-4 py-3 text-right">Points</th>
-                  <th className="px-4 py-3 text-right hidden sm:table-cell">Players</th>
-                  <th className="px-4 py-3 text-right hidden md:table-cell">1st</th>
-                  <th className="px-4 py-3 text-right hidden md:table-cell">2nd</th>
-                  <th className="px-4 py-3 text-right hidden md:table-cell">Top 4</th>
-                  <th className="px-4 py-3 hidden lg:table-cell">Top players</th>
-                </tr>
-              </thead>
-              <tbody className="hairline">
-                {rows.map((c) => {
-                  const known = isKnownCountry(c.country);
-                  return (
-                    <tr key={c.country} className="hover:bg-bg-hover/40 transition-colors">
-                      <td className="px-4 py-2.5"><RankCell rank={c.rank} /></td>
-                      <td className="px-4 py-2.5">
-                        <span className="inline-flex items-center gap-2 font-medium">
-                          <span aria-hidden className="text-base leading-none">{flagEmoji(c.country)}</span>
-                          <span className={known ? "" : "italic text-ink-muted"}>
-                            {countryName(c.country)}
-                          </span>
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular font-medium">
-                        {fmtNum(c.totalPoints)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular text-ink-muted hidden sm:table-cell">
-                        {fmtNum(c.players)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular text-ink-muted hidden md:table-cell">
-                        {c.top1 || ""}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular text-ink-muted hidden md:table-cell">
-                        {c.top2 || ""}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular text-ink-muted hidden md:table-cell">
-                        {c.top4 || ""}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs hidden lg:table-cell">
-                        <span className="text-ink-muted">
-                          {c.topPlayers.slice(0, 4).map((p, i) => (
-                            <span key={p.playerId}>
-                              {i > 0 ? ", " : ""}
-                              <Link
-                                href={qsHref(`/players/${encodeURIComponent(p.playerId)}`, sp)}
-                                className="hover:text-accent"
-                              >
-                                {p.displayName}
-                              </Link>
-                            </span>
-                          ))}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <SortableTable
+            columns={columns}
+            rows={rows.map((c) => {
+              const known = isKnownCountry(c.country);
+              return {
+                key: c.country,
+                filterText: `${countryName(c.country)} ${c.country}`,
+                sortValues: {
+                  rank: c.rank,
+                  country: countryName(c.country),
+                  points: c.totalPoints,
+                  players: c.players,
+                  first: c.top1,
+                  second: c.top2,
+                  top4: c.top4,
+                },
+                cells: [
+                  <RankCell key="r" rank={c.rank} />,
+                  <span key="c" className="inline-flex items-center gap-2 font-medium">
+                    <span aria-hidden className="text-base leading-none">{flagEmoji(c.country)}</span>
+                    <span className={known ? "" : "italic text-ink-muted"}>
+                      {countryName(c.country)}
+                    </span>
+                  </span>,
+                  <span key="p" className="tabular font-medium">{fmtNum(c.totalPoints)}</span>,
+                  <span key="pl" className="tabular text-ink-muted">{fmtNum(c.players)}</span>,
+                  <span key="1" className="tabular text-ink-muted">{c.top1 || ""}</span>,
+                  <span key="2" className="tabular text-ink-muted">{c.top2 || ""}</span>,
+                  <span key="4" className="tabular text-ink-muted">{c.top4 || ""}</span>,
+                  <span key="t" className="text-xs text-ink-muted">
+                    {c.topPlayers.slice(0, 4).map((p, i) => (
+                      <span key={p.playerId}>
+                        {i > 0 ? ", " : ""}
+                        <Link
+                          href={qsHref(`/players/${encodeURIComponent(p.playerId)}`, sp)}
+                          className="hover:text-accent"
+                        >
+                          {p.displayName}
+                        </Link>
+                      </span>
+                    ))}
+                  </span>,
+                ],
+              };
+            })}
+            defaultSort={{ id: "rank", dir: "asc" }}
+            pageSize={50}
+            filterPlaceholder="Filter countries..."
+          />
         </Card>
       </div>
     </Shell>
