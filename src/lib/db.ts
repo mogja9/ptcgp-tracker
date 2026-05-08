@@ -71,6 +71,21 @@ function initSchema(db: Database.Database) {
       value           TEXT NOT NULL,
       updated_at      TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS pairing (
+      tournament_id   TEXT NOT NULL REFERENCES tournament(id) ON DELETE CASCADE,
+      round           INTEGER NOT NULL,
+      phase           INTEGER NOT NULL,
+      table_no        INTEGER,
+      match_label     TEXT,
+      player1         TEXT NOT NULL,
+      player2         TEXT,                            -- null for byes
+      result          TEXT NOT NULL CHECK (result IN ('P1_WIN','P2_WIN','TIE','DOUBLE_LOSS','BYE')),
+      PRIMARY KEY (tournament_id, round, phase, player1)
+    );
+    CREATE INDEX IF NOT EXISTS pairing_tournament_idx ON pairing(tournament_id);
+    CREATE INDEX IF NOT EXISTS pairing_player1_idx    ON pairing(player1);
+    CREATE INDEX IF NOT EXISTS pairing_player2_idx    ON pairing(player2);
   `);
 }
 

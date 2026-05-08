@@ -13,12 +13,16 @@ import {
   listTournaments,
   getTournamentDetails,
   getTournamentStandings,
+  getTournamentPairings,
   MIN_REQUEST_INTERVAL_MS,
   sleep,
   type StandingEntry,
   type TournamentDetails,
+  type PairingEntry,
 } from "../src/lib/limitless";
 import { isEligible, phaseSummaries, pointsFor } from "../src/lib/rankings";
+
+const SKIP_PAIRINGS = process.env.SKIP_PAIRINGS === "1";
 
 const PAGES = Number(process.env.PAGES ?? 5); // 5 × 50 = 250 events by default
 const FRESH = process.env.FRESH === "1";
@@ -54,8 +58,23 @@ async function main() {
     console.log(`Page ${page}: ${list.length} tournaments`);
 
     for (const t of list) {
-      if (!FRESH && seen.has(t.id)) continue;
+      const already = seen.has(t.id);
+      const eligibleCached = isCachedEligible(t.id);
+      const needsPairings = !SKIP_PAIRINGS && eligibleCached && !hasPairings(t.id);
+
+      // Skip when we've already got everything: cached + (pairings present or skipping pairings)
+      if (!FRESH && already && !needsPairings) continue;
+
       try {
+        // Pairings-only backfill path: tournament is already cached as eligible
+        // and we just need its pairings. Skip the details/standings fetches.
+        if (!FRESH && already && needsPairings) {
+          const pairings = await paced(() => getTournamentPairings(t.id));
+          replacePairings(t.id, pairings);
+          console.log(`  ~ ${t.id}  (pairings backfilled)`);
+          continue;
+        }
+
         const details = await paced(() => getTournamentDetails(t.id));
         const eligible = isEligible(details);
         const { structure, matchFormat } = phaseSummaries(details);
@@ -70,6 +89,16 @@ async function main() {
         const standings = await paced(() => getTournamentStandings(t.id));
         upsertTournament(details, structure, matchFormat, true);
         replaceStandings(t.id, standings, details);
+
+        if (!SKIP_PAIRINGS) {
+          try {
+            const pairings = await paced(() => getTournamentPairings(t.id));
+            replacePairings(t.id, pairings);
+          } catch (e: any) {
+            console.warn(`    pairings unavailable for ${t.id}: ${e?.message ?? e}`);
+          }
+        }
+
         seen.add(t.id);
         added++;
         console.log(`  + ${t.id}  ${details.name}  (${details.players} players)`);
@@ -187,6 +216,61 @@ function replaceStandings(
     }
   });
   trx(standings);
+}
+
+function isCachedEligible(id: string): boolean {
+  const row = getDb()
+    .prepare(`SELECT eligible FROM tournament WHERE id = ?`)
+    .get(id) as { eligible: number } | undefined;
+  return row?.eligible === 1;
+}
+
+function hasPairings(id: string): boolean {
+  const row = getDb()
+    .prepare(`SELECT COUNT(*) AS c FROM pairing WHERE tournament_id = ?`)
+    .get(id) as { c: number };
+  return row.c > 0;
+}
+
+function replacePairings(tournamentId: string, rows: PairingEntry[]) {
+  const db = getDb();
+  const del = db.prepare(`DELETE FROM pairing WHERE tournament_id = ?`);
+  const ins = db.prepare(
+    `INSERT OR IGNORE INTO pairing
+       (tournament_id, round, phase, table_no, match_label, player1, player2, result)
+     VALUES (@t, @r, @ph, @tbl, @ml, @p1, @p2, @res)`
+  );
+  const trx = db.transaction((batch: PairingEntry[]) => {
+    del.run(tournamentId);
+    for (const p of batch) {
+      if (p.round == null || !Number.isFinite(p.round)) continue;
+      if (!p.player1) continue;
+      const result = classifyResult(p);
+      ins.run({
+        t: tournamentId,
+        r: p.round,
+        ph: p.phase ?? 1,
+        tbl: p.table ?? null,
+        ml: p.match ?? null,
+        p1: p.player1,
+        p2: p.player2 || null,
+        res: result,
+      });
+    }
+  });
+  trx(rows);
+}
+
+function classifyResult(p: PairingEntry): "P1_WIN" | "P2_WIN" | "TIE" | "DOUBLE_LOSS" | "BYE" {
+  if (!p.player2) return "BYE";
+  if (p.winner === 0) return "TIE";
+  if (p.winner === -1) return "DOUBLE_LOSS";
+  if (typeof p.winner === "string") {
+    if (p.winner === p.player1) return "P1_WIN";
+    if (p.winner === p.player2) return "P2_WIN";
+  }
+  // Heuristic fallback: no winner field at all => treat as tie for safety
+  return "TIE";
 }
 
 main().catch((e) => {
