@@ -6,7 +6,13 @@ import { DeckIcon } from "@/components/DeckIcon";
 import { Decklist, parseDecklist } from "@/components/Decklist";
 import { FavoriteStar } from "@/components/FavoriteStar";
 import { SortableTable, type ColumnDef, type RowData } from "@/components/SortableTable";
-import { getArchetypeLeaderboard, getDeckRollup, getSampleDecklist } from "@/lib/queries";
+import {
+  getArchetypeLeaderboard,
+  getDeckRollup,
+  getSampleDecklist,
+  getDeckMatchupHighlights,
+  getCardInclusion,
+} from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
 import { fmtDate, fmtNum, fmtPct } from "@/lib/format";
@@ -32,6 +38,14 @@ export default async function DeckPage({
   const players = safe(() => getArchetypeLeaderboard(decodedId, filter), [] as ReturnType<typeof getArchetypeLeaderboard>);
   const sample = safe(() => getSampleDecklist(decodedId, filter), null as ReturnType<typeof getSampleDecklist>);
   const sampleList = sample ? parseDecklist(sample.decklistJson) : null;
+  const matchups = safe(
+    () => getDeckMatchupHighlights(decodedId, filter, { minGames: 5, topN: 5 }),
+    null as ReturnType<typeof getDeckMatchupHighlights> | null
+  );
+  const inclusion = safe(
+    () => getCardInclusion(decodedId, filter),
+    { totalLists: 0, cards: [] as ReturnType<typeof getCardInclusion>["cards"] }
+  );
 
   return (
     <Shell filter={filter}>
@@ -83,6 +97,35 @@ export default async function DeckPage({
             <div className="px-5 py-4">
               <Decklist data={sampleList} />
             </div>
+          </Card>
+        )}
+
+        {matchups && (matchups.best.length > 0 || matchups.worst.length > 0) && (
+          <Card
+            title="Matchups"
+            subtitle={
+              <>
+                Across {fmtNum(matchups.overallGames)} games against decks with at least 5
+                games of sample.{" "}
+                <Link href={qsHref("/decks/matchups", sp)} className="text-accent hover:text-accent-strong">
+                  View full matrix →
+                </Link>
+              </>
+            }
+          >
+            <div className="grid sm:grid-cols-2 gap-x-5 px-5 py-4">
+              <MatchupColumn title="Best matchups" rows={matchups.best} sp={sp} sign="up" />
+              <MatchupColumn title="Worst matchups" rows={matchups.worst} sp={sp} sign="down" />
+            </div>
+          </Card>
+        )}
+
+        {inclusion.totalLists > 0 && (
+          <Card
+            title="Card inclusion"
+            subtitle={`Across ${fmtNum(inclusion.totalLists)} cached decklist${inclusion.totalLists === 1 ? "" : "s"}`}
+          >
+            <CardInclusionTable rows={inclusion.cards} />
           </Card>
         )}
 
@@ -154,3 +197,123 @@ const pilotColumns: ColumnDef[] = [
   { id: "winrate", label: "Win %",   sortable: true, align: "right", headerOnly: "hidden md:table-cell", className: "hidden md:table-cell" },
   { id: "first",   label: "1st / 2nd / T4", align: "right", headerOnly: "hidden lg:table-cell", className: "hidden lg:table-cell" },
 ];
+
+function MatchupColumn({
+  title,
+  rows,
+  sp,
+  sign,
+}: {
+  title: string;
+  rows: Array<{
+    vs: { deckId: string; deckName: string; iconA: string | null; iconB: string | null };
+    winRate: number;
+    games: number;
+  }>;
+  sp: SP;
+  sign: "up" | "down";
+}) {
+  if (rows.length === 0) {
+    return (
+      <div>
+        <div className="text-xs uppercase tracking-wider text-ink-dim mb-2">{title}</div>
+        <div className="text-sm text-ink-dim italic">Not enough games yet.</div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wider text-ink-dim mb-2">{title}</div>
+      <ul className="space-y-1.5">
+        {rows.map((r) => {
+          const winning = r.winRate >= 0.5;
+          const color = sign === "up" || winning ? "text-emerald-400" : "text-rose-400";
+          return (
+            <li key={r.vs.deckId} className="flex items-center gap-2">
+              <DeckIcon a={r.vs.iconA} b={r.vs.iconB} size={20} />
+              <Link
+                href={`/decks/${encodeURIComponent(r.vs.deckId)}${sp.season ? `?season=${encodeURIComponent(sp.season)}` : ""}`}
+                className="flex-1 min-w-0 truncate text-ink hover:text-accent text-sm"
+                title={r.vs.deckName}
+              >
+                {r.vs.deckName}
+              </Link>
+              <span className={`tabular text-sm font-medium ${color}`}>{fmtPct(r.winRate)}</span>
+              <span className="tabular text-[10px] text-ink-dim w-10 text-right">{r.games}g</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function CardInclusionTable({
+  rows,
+}: {
+  rows: Array<{
+    set: string;
+    number: string;
+    name: string;
+    category: "pokemon" | "trainer" | "energy";
+    inclusion: number;
+    avgCount: number;
+    listsWithCard: number;
+    totalLists: number;
+  }>;
+}) {
+  const pokemon = rows.filter((r) => r.category === "pokemon");
+  const trainer = rows.filter((r) => r.category === "trainer");
+  const energy = rows.filter((r) => r.category === "energy");
+  return (
+    <div className="grid md:grid-cols-2 gap-x-6 gap-y-4 px-5 py-4">
+      <InclusionSection title="Pokémon" rows={pokemon} />
+      <InclusionSection title="Trainer" rows={trainer} />
+      {energy.length > 0 && <InclusionSection title="Energy" rows={energy} />}
+    </div>
+  );
+}
+
+function InclusionSection({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{
+    set: string;
+    number: string;
+    name: string;
+    inclusion: number;
+    avgCount: number;
+    listsWithCard: number;
+    totalLists: number;
+  }>;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <div>
+      <h4 className="text-xs uppercase tracking-wider text-ink-dim border-b border-line pb-1.5 mb-2">
+        {title}
+      </h4>
+      <ul className="space-y-1 text-sm">
+        {rows.map((c, i) => (
+          <li key={`${c.set}-${c.number}-${c.name}-${i}`} className="flex items-baseline gap-2">
+            <div className="w-16 h-1.5 rounded bg-bg-raised overflow-hidden flex-shrink-0">
+              <div
+                className="h-full bg-accent/70"
+                style={{ width: `${Math.min(100, c.inclusion * 100)}%` }}
+              />
+            </div>
+            <span className="tabular text-ink-dim text-[10px] w-10">
+              {(c.inclusion * 100).toFixed(0)}%
+            </span>
+            <span className="text-ink truncate flex-1" title={c.name}>{c.name}</span>
+            <span className="ml-auto text-[10px] tabular text-ink-dim whitespace-nowrap">
+              {c.avgCount.toFixed(1)}x · {c.set} {c.number}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

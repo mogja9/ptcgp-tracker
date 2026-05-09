@@ -53,15 +53,26 @@ export default async function DecksPage({
   return (
     <Shell filter={filter}>
       <div className="grid gap-8">
-        <header>
-          <div className="text-xs uppercase tracking-[0.18em] text-accent">
-            {filterLabel(filter)}
+        <header className="flex items-start gap-6 flex-wrap">
+          <div className="flex-1">
+            <div className="text-xs uppercase tracking-[0.18em] text-accent">
+              {filterLabel(filter)}
+            </div>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tightish">Deck tier list</h1>
+            <p className="text-ink-muted mt-2 max-w-2xl">
+              Tiers are based on the share of top-32 finishes each deck collects across the
+              selected season. SS ≥ 30% · S ≥ 15% · A ≥ 10% · B ≥ 5% · C ≥ 1% · D below 1%.
+            </p>
           </div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tightish">Deck tier list</h1>
-          <p className="text-ink-muted mt-2 max-w-2xl">
-            Tiers are based on the share of top-32 finishes each deck collects across the
-            selected season. SS ≥ 30% · S ≥ 15% · A ≥ 10% · B ≥ 5% · C ≥ 1% · D below 1%.
-          </p>
+          <Link
+            href={qsHref("/decks/matchups", sp)}
+            className="inline-flex items-center gap-2 rounded-lg border border-line bg-bg-raised px-3 py-2 text-sm text-ink hover:bg-bg-hover transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-accent">
+              <path d="M3 3h6v6H3zM15 3h6v6h-6zM9 9h6v6H9zM3 15h6v6H3zM15 15h6v6h-6z" />
+            </svg>
+            Matchup matrix →
+          </Link>
         </header>
 
         <div className="grid gap-6">

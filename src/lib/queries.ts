@@ -550,6 +550,287 @@ export function getPlayer(playerId: string, filter: SeasonFilter): PlayerStats |
   };
 }
 
+// ---------- Matchups ----------
+
+export type MatchupCell = {
+  wins: number;     // deck-row vs deck-col, deck-row wins
+  losses: number;   // deck-col wins
+  ties: number;
+  games: number;    // wins + losses + ties
+  winRate: number;  // (wins + 0.5*ties) / games
+};
+
+export type MatchupMatrix = {
+  decks: Array<{
+    deckId: string;
+    deckName: string;
+    iconA: string | null;
+    iconB: string | null;
+    appearances: number;
+  }>;
+  // Square matrix indexed by deck position. cells[i][j] is deck i vs deck j.
+  cells: MatchupCell[][];
+  totalMatches: number;
+};
+
+// Build a deck-vs-deck winrate matrix from joined pairings + standings.
+// Only includes decks meeting `minAppearances` (top-32 appearances in the
+// season). The diagonal is the mirror match.
+export function getMatchupMatrix(
+  filter: SeasonFilter,
+  opts: { minAppearances?: number; minGames?: number } = {}
+): MatchupMatrix {
+  const minAppearances = opts.minAppearances ?? 5;
+  const minGames = opts.minGames ?? 1;
+  const dc = dateClause(filter);
+
+  // Pull every (deckA, deckB) pair-row tally
+  const rows = getDb()
+    .prepare(
+      `SELECT s1.deck_id AS deckA,
+              s2.deck_id AS deckB,
+              SUM(CASE WHEN p.result = 'P1_WIN' THEN 1 ELSE 0 END) AS p1Wins,
+              SUM(CASE WHEN p.result = 'P2_WIN' THEN 1 ELSE 0 END) AS p2Wins,
+              SUM(CASE WHEN p.result = 'TIE' THEN 1 ELSE 0 END)    AS ties
+         FROM pairing p
+         JOIN tournament t  ON t.id = p.tournament_id
+         JOIN standing  s1  ON s1.tournament_id = p.tournament_id AND s1.player_id = p.player1
+         JOIN standing  s2  ON s2.tournament_id = p.tournament_id AND s2.player_id = p.player2
+         WHERE p.result IN ('P1_WIN','P2_WIN','TIE')
+           AND s1.deck_id IS NOT NULL AND s2.deck_id IS NOT NULL
+           AND t.eligible = 1${dc.sql}
+         GROUP BY s1.deck_id, s2.deck_id`
+    )
+    .all(...dc.params) as Array<{
+      deckA: string; deckB: string;
+      p1Wins: number; p2Wins: number; ties: number;
+    }>;
+
+  // Aggregate symmetric counts: cell(X,Y).wins = X-as-p1 wins-vs-Y + X-as-p2 wins-vs-Y
+  type AggKey = string; // `${deckA}|${deckB}` with deckA always < deckB
+  type Agg = { aWins: number; bWins: number; ties: number };
+  const agg = new Map<AggKey, Agg>();
+  for (const r of rows) {
+    if (r.deckA === r.deckB) continue; // mirror handled separately below
+    const [lo, hi] = r.deckA < r.deckB ? [r.deckA, r.deckB] : [r.deckB, r.deckA];
+    const key = `${lo}|${hi}`;
+    const flip = r.deckA !== lo;
+    const cur = agg.get(key) ?? { aWins: 0, bWins: 0, ties: 0 };
+    if (!flip) {
+      cur.aWins += r.p1Wins;
+      cur.bWins += r.p2Wins;
+    } else {
+      cur.aWins += r.p2Wins;
+      cur.bWins += r.p1Wins;
+    }
+    cur.ties += r.ties;
+    agg.set(key, cur);
+  }
+  // Mirror matches (deckA == deckB): collapse all rows into a per-deck self-record.
+  type Mirror = { games: number; ties: number };
+  const mirror = new Map<string, Mirror>();
+  for (const r of rows) {
+    if (r.deckA !== r.deckB) continue;
+    const m = mirror.get(r.deckA) ?? { games: 0, ties: 0 };
+    m.games += r.p1Wins + r.p2Wins + r.ties;
+    m.ties += r.ties;
+    mirror.set(r.deckA, m);
+  }
+
+  // Pick the top decks by overall appearances (top-32 placings) for matrix axes.
+  const deckRoll = getDb()
+    .prepare(
+      `SELECT s.deck_id, s.deck_name, s.deck_icon_a AS icon_a, s.deck_icon_b AS icon_b, COUNT(*) AS appearances
+         FROM standing s
+         JOIN tournament t ON t.id = s.tournament_id
+         WHERE t.eligible = 1 AND s.deck_id IS NOT NULL AND s.placing <= 32${dc.sql}
+         GROUP BY s.deck_id, s.deck_name
+         HAVING appearances >= ?
+         ORDER BY appearances DESC`
+    )
+    .all(...dc.params, minAppearances) as Array<{
+      deck_id: string; deck_name: string | null;
+      icon_a: string | null; icon_b: string | null; appearances: number;
+    }>;
+
+  const decks = deckRoll.map((d) => ({
+    deckId: d.deck_id,
+    deckName: d.deck_name ?? d.deck_id,
+    iconA: d.icon_a,
+    iconB: d.icon_b,
+    appearances: d.appearances,
+  }));
+  const index = new Map(decks.map((d, i) => [d.deckId, i] as const));
+
+  const n = decks.length;
+  const cells: MatchupCell[][] = Array.from({ length: n }, () =>
+    Array.from({ length: n }, () => ({ wins: 0, losses: 0, ties: 0, games: 0, winRate: 0.5 }))
+  );
+
+  // Off-diagonal cells from aggregated pair-rows
+  let total = 0;
+  for (const [key, v] of agg) {
+    const [lo, hi] = key.split("|");
+    const iA = index.get(lo);
+    const iB = index.get(hi);
+    if (iA == null || iB == null) continue;
+    const games = v.aWins + v.bWins + v.ties;
+    if (games < minGames) continue;
+    total += games;
+    const aWR = games ? (v.aWins + v.ties * 0.5) / games : 0.5;
+    const bWR = 1 - aWR;
+    cells[iA][iB] = {
+      wins: v.aWins, losses: v.bWins, ties: v.ties, games, winRate: aWR,
+    };
+    cells[iB][iA] = {
+      wins: v.bWins, losses: v.aWins, ties: v.ties, games, winRate: bWR,
+    };
+  }
+
+  // Diagonal: mirror matches (one match counts once; winrate is by definition 0.5,
+  // but show sample size so users know how grounded the data is).
+  for (const [deckId, m] of mirror) {
+    const i = index.get(deckId);
+    if (i == null) continue;
+    cells[i][i] = {
+      wins: 0, losses: 0, ties: m.ties, games: m.games, winRate: 0.5,
+    };
+    total += m.games;
+  }
+
+  return { decks, cells, totalMatches: total };
+}
+
+// Best/worst matchups per deck (used on /decks/[id] sidebars).
+export function getDeckMatchupHighlights(
+  deckId: string,
+  filter: SeasonFilter,
+  opts: { minGames?: number; topN?: number } = {}
+): {
+  best: Array<{ vs: { deckId: string; deckName: string; iconA: string | null; iconB: string | null }; winRate: number; games: number }>;
+  worst: Array<{ vs: { deckId: string; deckName: string; iconA: string | null; iconB: string | null }; winRate: number; games: number }>;
+  overallGames: number;
+  overallWinRate: number;
+} {
+  const minGames = opts.minGames ?? 8;
+  const topN = opts.topN ?? 5;
+  const matrix = getMatchupMatrix(filter, { minAppearances: 1, minGames: 1 });
+  const i = matrix.decks.findIndex((d) => d.deckId === deckId);
+  if (i < 0) {
+    return { best: [], worst: [], overallGames: 0, overallWinRate: 0.5 };
+  }
+  const row = matrix.cells[i];
+  let games = 0, winsW = 0;
+  const ranked = matrix.decks
+    .map((d, j) => ({ d, c: row[j], j }))
+    .filter((x) => x.j !== i && x.c.games >= minGames);
+  for (const x of ranked) {
+    games += x.c.games;
+    winsW += x.c.wins + x.c.ties * 0.5;
+  }
+  const ascByWR = [...ranked].sort((a, b) => a.c.winRate - b.c.winRate);
+  const worst = ascByWR.slice(0, topN).map((x) => ({
+    vs: { deckId: x.d.deckId, deckName: x.d.deckName, iconA: x.d.iconA, iconB: x.d.iconB },
+    winRate: x.c.winRate,
+    games: x.c.games,
+  }));
+  const best = [...ascByWR]
+    .reverse()
+    .slice(0, topN)
+    .map((x) => ({
+      vs: { deckId: x.d.deckId, deckName: x.d.deckName, iconA: x.d.iconA, iconB: x.d.iconB },
+      winRate: x.c.winRate,
+      games: x.c.games,
+    }));
+  return {
+    best,
+    worst,
+    overallGames: games,
+    overallWinRate: games ? winsW / games : 0.5,
+  };
+}
+
+// ---------- Card inclusion ----------
+
+export type CardInclusionRow = {
+  set: string;
+  number: string;
+  name: string;
+  category: "pokemon" | "trainer" | "energy";
+  // Across all sampled decklists for the archetype:
+  //   inclusion: fraction of lists that run at least one copy (0..1)
+  //   avgCount:  mean copies per list that runs it (1..2)
+  //   listsWithCard / totalLists
+  inclusion: number;
+  avgCount: number;
+  listsWithCard: number;
+  totalLists: number;
+};
+
+// Per-deck card inclusion stats, aggregated from the decklist_json column.
+export function getCardInclusion(
+  deckId: string,
+  filter: SeasonFilter
+): { totalLists: number; cards: CardInclusionRow[] } {
+  const dc = dateClause(filter);
+  const lists = getDb()
+    .prepare(
+      `SELECT s.decklist_json AS dl
+         FROM standing s
+         JOIN tournament t ON t.id = s.tournament_id
+         WHERE t.eligible = 1 AND s.deck_id = ? AND s.decklist_json IS NOT NULL${dc.sql}`
+    )
+    .all(deckId, ...dc.params) as Array<{ dl: string }>;
+
+  type Agg = {
+    set: string;
+    number: string;
+    name: string;
+    category: "pokemon" | "trainer" | "energy";
+    lists: number;
+    copies: number;
+  };
+  const agg = new Map<string, Agg>();
+  let totalLists = 0;
+  for (const row of lists) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(row.dl);
+    } catch {
+      continue;
+    }
+    totalLists++;
+    for (const cat of ["pokemon", "trainer", "energy"] as const) {
+      const arr: any[] = parsed?.[cat] ?? [];
+      for (const c of arr) {
+        if (!c?.name) continue;
+        const set = String(c.set ?? "");
+        const num = String(c.number ?? "");
+        const key = `${cat}:${set}|${num}|${c.name}`;
+        const cur = agg.get(key) ?? {
+          set, number: num, name: c.name, category: cat, lists: 0, copies: 0,
+        };
+        cur.lists += 1;
+        cur.copies += Number(c.count ?? 1);
+        agg.set(key, cur);
+      }
+    }
+  }
+
+  const cards: CardInclusionRow[] = [...agg.values()].map((a) => ({
+    set: a.set,
+    number: a.number,
+    name: a.name,
+    category: a.category,
+    listsWithCard: a.lists,
+    totalLists,
+    inclusion: totalLists ? a.lists / totalLists : 0,
+    avgCount: a.lists ? a.copies / a.lists : 0,
+  }));
+  cards.sort((a, b) => b.inclusion - a.inclusion || b.avgCount - a.avgCount);
+  return { totalLists, cards };
+}
+
 // ---------- Search ----------
 
 export type PlayerSearchResult = {
