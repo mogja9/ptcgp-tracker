@@ -4,6 +4,7 @@ import { Card, Stat, RankCell, EmptyState, Badge } from "@/components/ui";
 import { FavoriteStar } from "@/components/FavoriteStar";
 import { FollowingRail } from "@/components/FollowingRail";
 import { SortableTable, type ColumnDef, type RowData } from "@/components/SortableTable";
+import { Sparkline } from "@/components/Sparkline";
 import { getLeaderboard, getStats, getRecentTournaments } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
@@ -61,6 +62,7 @@ export default async function Home({
     { id: "top4",   label: "Top 4",  sortable: true,  align: "right", headerOnly: "hidden lg:table-cell", className: "hidden lg:table-cell" },
     { id: "top8",   label: "Top 8",  sortable: true,  align: "right", headerOnly: "hidden lg:table-cell", className: "hidden lg:table-cell" },
     { id: "top16",  label: "Top 16", sortable: true,  align: "right", headerOnly: "hidden xl:table-cell", className: "hidden xl:table-cell" },
+    { id: "trend",  label: "Trend",  align: "right",                  headerOnly: "hidden xl:table-cell", className: "hidden xl:table-cell" },
   ];
 
   const rows: RowData[] = board.map((p) => ({
@@ -100,6 +102,9 @@ export default async function Home({
       <span key="4" className="tabular text-ink-muted">{p.byBucket.TOP4 || ""}</span>,
       <span key="8" className="tabular text-ink-muted">{p.byBucket.TOP8 || ""}</span>,
       <span key="16" className="tabular text-ink-muted">{p.byBucket.TOP16 || ""}</span>,
+      <span key="tr" className="inline-block text-accent">
+        <Sparkline values={p.best10Points} width={72} height={20} />
+      </span>,
     ],
   }));
 

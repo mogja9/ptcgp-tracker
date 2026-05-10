@@ -12,7 +12,9 @@ import {
   getSampleDecklist,
   getDeckMatchupHighlights,
   getCardInclusion,
+  getDeckTimeSeries,
 } from "@/lib/queries";
+import { LineChart } from "@/components/LineChart";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
 import { fmtDate, fmtNum, fmtPct } from "@/lib/format";
@@ -45,6 +47,10 @@ export default async function DeckPage({
   const inclusion = safe(
     () => getCardInclusion(decodedId, filter),
     { totalLists: 0, cards: [] as ReturnType<typeof getCardInclusion>["cards"] }
+  );
+  const series = safe(
+    () => getDeckTimeSeries(decodedId, filter),
+    [] as ReturnType<typeof getDeckTimeSeries>
   );
 
   return (
@@ -96,6 +102,22 @@ export default async function DeckPage({
           >
             <div className="px-5 py-4">
               <Decklist data={sampleList} />
+            </div>
+          </Card>
+        )}
+
+        {series.length >= 2 && (
+          <Card title="Appearances over time" subtitle="Weekly top-32 finishes within the selected season">
+            <div className="px-5 py-4 text-accent">
+              <LineChart
+                points={series.map((s) => ({
+                  x: new Date(s.week).toLocaleDateString(undefined, { month: "short", day: "2-digit" }),
+                  y: s.appearances,
+                }))}
+                height={160}
+                yLabel="Top-32 finishes"
+                caption={`${series.length} weeks`}
+              />
             </div>
           </Card>
         )}

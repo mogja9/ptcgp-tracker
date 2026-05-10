@@ -831,6 +831,52 @@ export function getCardInclusion(
   return { totalLists, cards };
 }
 
+// ---------- Time series ----------
+
+// Weekly top-32 appearance counts for a single deck across the season window.
+// Weeks are Monday-anchored ISO weeks ("YYYY-MM-DD" of the Monday).
+export function getDeckTimeSeries(
+  deckId: string,
+  filter: SeasonFilter
+): Array<{ week: string; appearances: number }> {
+  const dc = dateClause(filter);
+  const rows = getDb()
+    .prepare(
+      `SELECT t.date AS date
+         FROM standing s
+         JOIN tournament t ON t.id = s.tournament_id
+         WHERE t.eligible = 1 AND s.deck_id = ? AND s.placing <= 32${dc.sql}
+         ORDER BY t.date ASC`
+    )
+    .all(deckId, ...dc.params) as Array<{ date: string }>;
+  if (rows.length === 0) return [];
+
+  const buckets = new Map<string, number>();
+  for (const r of rows) {
+    const key = mondayOf(r.date);
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+
+  // Densify: fill every week between min and max with 0 if missing.
+  const keys = [...buckets.keys()].sort();
+  const start = new Date(keys[0] + "T00:00:00Z");
+  const end = new Date(keys[keys.length - 1] + "T00:00:00Z");
+  const out: Array<{ week: string; appearances: number }> = [];
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 7)) {
+    const k = d.toISOString().slice(0, 10);
+    out.push({ week: k, appearances: buckets.get(k) ?? 0 });
+  }
+  return out;
+}
+
+function mondayOf(iso: string): string {
+  const d = new Date(iso.slice(0, 10) + "T00:00:00Z");
+  const day = d.getUTCDay(); // 0 sun..6 sat
+  const diff = (day + 6) % 7; // days since monday
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d.toISOString().slice(0, 10);
+}
+
 // ---------- Search ----------
 
 export type PlayerSearchResult = {
