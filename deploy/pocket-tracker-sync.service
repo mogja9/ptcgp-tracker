@@ -1,0 +1,18 @@
+[Unit]
+Description=ptcgp-tracker Limitless sync (one-shot, paired with .timer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+WorkingDirectory=/opt/ptcgp-tracker
+Environment=NODE_ENV=production
+EnvironmentFile=-/opt/ptcgp-tracker/.env
+# Pull a small slice each tick so a single failure doesn't blow the 50 req/5min budget.
+Environment=PAGES=2
+ExecStart=/usr/bin/npm run sync
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

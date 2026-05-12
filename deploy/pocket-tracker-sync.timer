@@ -1,0 +1,15 @@
+[Unit]
+Description=ptcgp-tracker scheduled sync
+Requires=pocket-tracker-sync.service
+
+[Timer]
+# Every two hours, with a 5 minute randomized delay to avoid hammering the
+# Limitless API at exactly :00 if many self-hosters do the same thing.
+OnBootSec=2min
+OnUnitActiveSec=2h
+RandomizedDelaySec=5min
+Unit=pocket-tracker-sync.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

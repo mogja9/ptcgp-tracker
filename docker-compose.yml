@@ -1,0 +1,25 @@
+services:
+  web:
+    build: .
+    image: ptcgp-tracker:latest
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/data
+    environment:
+      LIMITLESS_API_KEY: ${LIMITLESS_API_KEY:-}
+
+  sync:
+    image: ptcgp-tracker:latest
+    # Inherits the web build via image tag; only differs in command + lack of port.
+    restart: unless-stopped
+    depends_on:
+      - web
+    volumes:
+      - ./data:/app/data
+    environment:
+      LIMITLESS_API_KEY: ${LIMITLESS_API_KEY:-}
+      INTERVAL_MINUTES: ${INTERVAL_MINUTES:-120}
+      PAGES: ${PAGES:-2}
+    command: ["npm", "run", "sync:loop"]

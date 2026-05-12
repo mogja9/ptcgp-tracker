@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start -p 3001",
     "sync": "tsx scripts/sync.ts",
-    "init-db": "tsx scripts/init-db.ts",
-    "seed": "tsx scripts/seed-from-fixtures.ts"
+    "sync:loop": "tsx scripts/sync-loop.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.5.0",
