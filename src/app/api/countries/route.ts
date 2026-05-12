@@ -3,7 +3,6 @@ import { getCountryRankings } from "@/lib/queries";
 import { getFilterFromRequest, jsonOk, jsonError } from "@/lib/api-helpers";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {

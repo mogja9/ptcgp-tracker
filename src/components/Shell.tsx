@@ -1,11 +1,12 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { getStats, getSeasonsWithData } from "@/lib/queries";
 import { SeasonPicker } from "./SeasonPicker";
 import { MobileNav } from "./MobileNav";
 import { PlayerSearch } from "./PlayerSearch";
 import { ThemeToggle } from "./ThemeToggle";
 import type { SeasonFilter } from "@/lib/seasons";
+import { safe } from "@/lib/safe";
 
 const NAV = [
   { href: "/", label: "Rankings" },
@@ -55,7 +56,9 @@ export function Shell({
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <PlayerSearch />
-            <SeasonPicker current={pickerCurrent} seasonsWithData={seasonsWithData} />
+            <Suspense fallback={null}>
+              <SeasonPicker current={pickerCurrent} seasonsWithData={seasonsWithData} />
+            </Suspense>
             <ThemeToggle />
             <MobileNav items={NAV} />
           </div>
@@ -89,9 +92,6 @@ export function Shell({
   );
 }
 
-function safe<T>(fn: () => T, fallback: T): T {
-  try { return fn(); } catch { return fallback; }
-}
 
 function Logo() {
   return (

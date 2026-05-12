@@ -1,10 +1,11 @@
-import Database from "better-sqlite3";
+import Database, { type Statement } from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 
 const DB_PATH = path.resolve(process.cwd(), "data", "pocket.db");
 
 let _db: Database.Database | null = null;
+let _stmtCache: Map<string, Statement> | null = null;
 
 export function getDb(): Database.Database {
   if (_db) return _db;
@@ -13,9 +14,34 @@ export function getDb(): Database.Database {
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
   db.pragma("foreign_keys = ON");
+  db.pragma("temp_store = MEMORY");
+  db.pragma("mmap_size = 134217728"); // 128 MB
   initSchema(db);
   _db = db;
+  _stmtCache = new Map();
   return db;
+}
+
+// Prepared-statement cache. Reused statements skip the parse/plan step, which
+// matters for the per-request hot queries that fire on every page load.
+export function prep(sql: string): Statement {
+  const db = getDb();
+  if (!_stmtCache) _stmtCache = new Map();
+  let s = _stmtCache.get(sql);
+  if (!s) {
+    s = db.prepare(sql);
+    _stmtCache.set(sql, s);
+  }
+  return s;
+}
+
+// Typed `.all()` / `.get()` wrappers. Replaces the `as Array<{...}>` cast at
+// every call site.
+export function queryAll<T>(sql: string, ...params: unknown[]): T[] {
+  return prep(sql).all(...params) as T[];
+}
+export function queryOne<T>(sql: string, ...params: unknown[]): T | undefined {
+  return prep(sql).get(...params) as T | undefined;
 }
 
 function initSchema(db: Database.Database) {
@@ -63,6 +89,7 @@ function initSchema(db: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS standing_player_idx       ON standing(player_id);
     CREATE INDEX IF NOT EXISTS standing_deck_idx         ON standing(deck_id);
+    CREATE INDEX IF NOT EXISTS standing_deck_placing_idx ON standing(deck_id, placing);
     CREATE INDEX IF NOT EXISTS standing_country_idx      ON standing(country);
     CREATE INDEX IF NOT EXISTS standing_tournament_idx   ON standing(tournament_id, placing);
 
@@ -90,16 +117,16 @@ function initSchema(db: Database.Database) {
 }
 
 export function setMeta(key: string, value: string) {
-  const db = getDb();
-  db.prepare(
+  prep(
     `INSERT INTO sync_meta(key, value, updated_at) VALUES (?, ?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
   ).run(key, value, new Date().toISOString());
 }
 
 export function getMeta(key: string): string | null {
-  const row = getDb().prepare(`SELECT value FROM sync_meta WHERE key = ?`).get(key) as
-    | { value: string }
-    | undefined;
+  const row = queryOne<{ value: string }>(
+    `SELECT value FROM sync_meta WHERE key = ?`,
+    key
+  );
   return row?.value ?? null;
 }

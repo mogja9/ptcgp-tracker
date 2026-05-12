@@ -3,7 +3,6 @@ import { getLeaderboard, getStats } from "@/lib/queries";
 import { getFilterFromRequest, jsonOk, jsonError, parseIntParam } from "@/lib/api-helpers";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {

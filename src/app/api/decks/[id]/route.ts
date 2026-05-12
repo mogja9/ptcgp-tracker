@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server";
-import { getArchetypeLeaderboard, getDeckRollup, getSampleDecklist } from "@/lib/queries";
+import { getArchetypeLeaderboard, getDeckById, getSampleDecklist } from "@/lib/queries";
 import { getFilterFromRequest, jsonOk, jsonError } from "@/lib/api-helpers";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
@@ -13,7 +12,7 @@ export async function GET(
     const { id } = await ctx.params;
     const decoded = decodeURIComponent(id);
     const { filter, label } = getFilterFromRequest(req);
-    const rollup = getDeckRollup(filter, 2000).find((d) => d.deckId === decoded);
+    const rollup = getDeckById(decoded, filter);
     if (!rollup) return jsonError(new Error("Deck not found"), 404);
     const pilots = getArchetypeLeaderboard(decoded, filter);
     const sample = getSampleDecklist(decoded, filter);

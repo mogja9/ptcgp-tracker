@@ -101,7 +101,7 @@ export function pointsFor(placing: number, t: TournamentDetails): number {
 }
 
 // Best-10 aggregation: given an unsorted list of point values, sum the 10
-// largest. Used by the leaderboard query.
+// largest. Pure: does not mutate the input.
 export function best10(points: number[]) {
-  return points.sort((a, b) => b - a).slice(0, 10).reduce((s, x) => s + x, 0);
+  return [...points].sort((a, b) => b - a).slice(0, 10).reduce((s, x) => s + x, 0);
 }

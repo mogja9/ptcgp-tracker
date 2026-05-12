@@ -6,8 +6,7 @@ import { getCountryRankings } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName, isKnownCountry } from "@/lib/countries";
 import { fmtNum } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
+import { safe } from "@/lib/safe";
 
 type SP = { season?: string };
 
@@ -113,6 +112,3 @@ function qsHref(pathname: string, sp: SP) {
   return sp.season ? `${pathname}?season=${encodeURIComponent(sp.season)}` : pathname;
 }
 
-function safe<T>(fn: () => T, fallback: T): T {
-  try { return fn(); } catch { return fallback; }
-}

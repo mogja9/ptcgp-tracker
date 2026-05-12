@@ -4,8 +4,7 @@ import { Card, EmptyState, Badge } from "@/components/ui";
 import { getRecentTournaments } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { fmtDate, fmtRelative, fmtNum } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
+import { safe } from "@/lib/safe";
 
 type SP = { season?: string };
 
@@ -73,6 +72,3 @@ function qsHref(pathname: string, sp: SP) {
   return sp.season ? `${pathname}?season=${encodeURIComponent(sp.season)}` : pathname;
 }
 
-function safe<T>(fn: () => T, fallback: T): T {
-  try { return fn(); } catch { return fallback; }
-}

@@ -8,8 +8,7 @@ import { getPlayer } from "@/lib/queries";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
 import { fmtDate, fmtNum, fmtPct } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
+import { safe } from "@/lib/safe";
 
 type SP = { season?: string };
 
@@ -161,7 +160,4 @@ export default async function PlayerPage({
 
 function qsHref(pathname: string, sp: SP) {
   return sp.season ? `${pathname}?season=${encodeURIComponent(sp.season)}` : pathname;
-}
-function safe<T>(fn: () => T): T | null {
-  try { return fn(); } catch { return null; }
 }

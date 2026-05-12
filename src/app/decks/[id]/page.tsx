@@ -8,7 +8,7 @@ import { FavoriteStar } from "@/components/FavoriteStar";
 import { SortableTable, type ColumnDef, type RowData } from "@/components/SortableTable";
 import {
   getArchetypeLeaderboard,
-  getDeckRollup,
+  getDeckById,
   getSampleDecklist,
   getDeckMatchupHighlights,
   getCardInclusion,
@@ -18,8 +18,7 @@ import { LineChart } from "@/components/LineChart";
 import { parseSeasonParam, filterLabel } from "@/lib/seasons";
 import { flagEmoji, countryName } from "@/lib/countries";
 import { fmtDate, fmtNum, fmtPct } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
+import { safe } from "@/lib/safe";
 
 type SP = { season?: string };
 
@@ -34,7 +33,7 @@ export default async function DeckPage({
   const filter = parseSeasonParam(sp.season);
   const decodedId = decodeURIComponent(id);
 
-  const rollup = safe(() => getDeckRollup(filter, 2000).find((d) => d.deckId === decodedId), null);
+  const rollup = safe(() => getDeckById(decodedId, filter), null);
   if (!rollup) notFound();
 
   const players = safe(() => getArchetypeLeaderboard(decodedId, filter), [] as ReturnType<typeof getArchetypeLeaderboard>);
@@ -71,7 +70,7 @@ export default async function DeckPage({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Stat label="Top-32 appearances" value={fmtNum(rollup.appearances)} />
+          <Stat label="Top-32 appearances" value={fmtNum(rollup.top32)} />
           <Stat label="1st-place finishes" value={fmtNum(rollup.top1)} />
           <Stat label="Finals" value={fmtNum(rollup.top2)} sub={`+ ${Math.max(rollup.top4 - rollup.top2 - rollup.top1, 0)} top 4`} />
           <Stat label="Distinct pilots" value={fmtNum(players.length)} />
@@ -205,9 +204,6 @@ export default async function DeckPage({
 
 function qsHref(pathname: string, sp: SP) {
   return sp.season ? `${pathname}?season=${encodeURIComponent(sp.season)}` : pathname;
-}
-function safe<T>(fn: () => T, fallback: T): T {
-  try { return fn(); } catch { return fallback; }
 }
 
 const pilotColumns: ColumnDef[] = [
